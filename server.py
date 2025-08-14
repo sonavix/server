@@ -1,0 +1,119 @@
+from typing import List
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import urlparse
+import json
+
+# Класс пользователя
+class User:
+    def __init__(self, username, balance=0):
+        self.username = username
+        self.balance = balance
+
+# Список всех пользователей
+users: List[User] = []
+
+class SimpleHandler(BaseHTTPRequestHandler):
+
+    # Метод POST — добавление нового пользователя
+    def do_POST(self):
+        content_length = int(self.headers.get('Content-Length', 0))
+        post_body = self.rfile.read(content_length)
+
+        try:
+            data = json.loads(post_body.decode())  # Читаем JSON из запроса
+            name = data.get("name")
+            balance = data.get("balance", 0)
+
+            if not name:
+                raise ValueError("Поле 'name' обязательно")
+
+            user = User(name, balance)
+            users.append(user)  # Добавляем пользователя в список
+
+            response = {
+                "message": "Пользователь создан",
+                "user": {
+                    "name": user.username,
+                    "balance": user.balance
+                }
+            }
+
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(response).encode())
+
+        except Exception as e:
+            self.send_response(400)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e)}).encode())
+
+    # Метод GET — получить пользователя по имени и балансу
+    def do_GET(self):
+        parsed_url = urlparse(self.path)
+        path_parts = parsed_url.path.strip("/").split("/")
+
+        username = path_parts[0] if len(path_parts) > 0 else None
+
+
+        if not username:
+            self.send_response(400)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Username is missing"}).encode())
+            return
+
+        for user in users:
+            if user.username == username:
+                self.send_response(200)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "message": "Пользователь найден",
+                    "user": {
+                        "name": user.username,
+                        "balance": user.balance
+                    }
+                }).encode())
+                return
+
+        self.send_response(404)
+        self.send_header("Content-type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps({"error": "Пользователь не найден"}).encode())
+
+    # 🔥 Метод DELETE — удалить пользователя по имени
+    def do_DELETE(self):
+        parsed_url = urlparse(self.path)
+        path_parts = parsed_url.path.strip("/").split("/")
+
+        if len(path_parts) != 1:
+            self.send_response(400)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Неправильный путь. Используйте /username"}).encode())
+            return
+
+        username = path_parts[0]
+        global users
+
+        # Проверка: существует ли пользователь
+        for user in users:
+            if user.username == username:
+                users = [u for u in users if u.username != username]  # Удаляем
+                self.send_response(200)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"message": f"Пользователь {username} удалён"}).encode())
+                return
+
+        self.send_response(404)
+        self.send_header("Content-type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps({"error": "Пользователь не найден"}).encode())
+
+# Запуск сервера
+server = HTTPServer(("localhost", 8000), SimpleHandler)
+print("Сервер запущен: http://localhost:8000/")
+server.serve_forever()
