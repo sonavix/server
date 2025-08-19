@@ -93,19 +93,18 @@ class SimpleHandler(BaseHTTPRequestHandler):
         global users
 
         # Проверка: существует ли пользователь
-        for user in users:
-            if user.username == username:
-                users = [u for u in users if u.username != username]  # Удаляем
-                self.send_response(200)
-                self.send_header("Content-type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"message": f"Пользователь {username} удалён"}).encode())
-                return
+        user = users.delete_user(username)
+        if user:
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"message": f"Пользователь {username} удален"}).encode())
+        else:
 
-        self.send_response(404)
-        self.send_header("Content-type", "application/json")
-        self.end_headers()
-        self.wfile.write(json.dumps({"error": "Пользователь не найден"}).encode())
+            self.send_response(404)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Пользователь не найден"}).encode())
 
 # Запуск сервера
 server = HTTPServer(("localhost", 8000), SimpleHandler)
