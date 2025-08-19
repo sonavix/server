@@ -1,3 +1,4 @@
+from db import Db
 from typing import List
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
@@ -9,8 +10,7 @@ class User:
         self.username = username
         self.balance = balance
 
-# Список всех пользователей
-users: List[User] = []
+users: Db = Db(db_name="users", db_user="sofia", db_password="nigga")
 
 class SimpleHandler(BaseHTTPRequestHandler):
 
@@ -27,14 +27,14 @@ class SimpleHandler(BaseHTTPRequestHandler):
             if not name:
                 raise ValueError("Поле 'name' обязательно")
 
-            user = User(name, balance)
-            users.append(user)  # Добавляем пользователя в список
+            users.insert_user(name, balance)  # Добавляем пользователя в базу данных
+                                 # Добавляем пользователя в список
 
             response = {
                 "message": "Пользователь создан",
                 "user": {
-                    "name": user.username,
-                    "balance": user.balance
+                    "name": name,
+                    "balance": balance
                 }
             }
 
@@ -64,24 +64,18 @@ class SimpleHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"error": "Username is missing"}).encode())
             return
 
-        for user in users:
-            if user.username == username:
-                self.send_response(200)
-                self.send_header("Content-type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({
-                    "message": "Пользователь найден",
-                    "user": {
-                        "name": user.username,
-                        "balance": user.balance
-                    }
-                }).encode())
-                return
+        user = users.get_user(username)
+        if user:
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(user).encode())
+        else:
 
-        self.send_response(404)
-        self.send_header("Content-type", "application/json")
-        self.end_headers()
-        self.wfile.write(json.dumps({"error": "Пользователь не найден"}).encode())
+            self.send_response(404)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Пользователь не найден"}).encode())
 
     # 🔥 Метод DELETE — удалить пользователя по имени
     def do_DELETE(self):
